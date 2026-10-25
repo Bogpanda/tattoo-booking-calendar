@@ -442,6 +442,15 @@ body { width: 100%; overflow-x: hidden; }
       <div id="status" class="status" role="status" aria-live="polite" style="padding:10px 12px;background:#eef6fa;border-radius:8px;overflow-wrap:anywhere;"></div>
       <div class="actions"><button id="exportSettingsBtn" type="button">匯出設定備份</button><button id="importSettingsBtn" type="button">匯入設定備份</button></div>
       <input id="importSettingsFile" type="file" accept="application/json,.json" hidden>
+      <div class="sync-panel" style="margin-top:16px;padding:14px;border:1px solid #c9dce5;border-radius:12px;background:#f7fbfd;">
+        <h3 style="margin:0 0 8px;font-size:14px;">雲端同步（跨裝置）</h3>
+        <p class="hint" style="margin:0 0 10px;">使用同一個 Email 帳號在不同裝置同步。第一次使用請先註冊；上傳前建議先匯出 JSON 備份。</p>
+        <label class="field"><span>Email</span><input id="syncEmail" type="email" autocomplete="email" placeholder="你的 Email"></label>
+        <label class="field"><span>密碼</span><input id="syncPassword" type="password" autocomplete="current-password" placeholder="至少 6 個字元"></label>
+        <div class="actions"><button id="syncSignupBtn" type="button">註冊帳號</button><button id="syncLoginBtn" class="primary" type="button">登入</button><button id="syncLogoutBtn" type="button" hidden>登出</button></div>
+        <div class="actions"><button id="syncUploadBtn" type="button" disabled>上傳目前設定</button><button id="syncDownloadBtn" type="button" disabled>下載雲端設定</button></div>
+        <p id="syncStatus" class="hint" role="status" aria-live="polite" style="overflow-wrap:anywhere;margin-bottom:0;">尚未登入。</p>
+      </div>
       <p class="hint">設定會在此瀏覽器自動儲存；「匯出設定備份」可另存 JSON，換裝置或清除瀏覽器資料前可用「匯入設定備份」還原。</p>
       <p class="hint">「下載 IG JPG」會直接輸出目前預覽：高解析輸出：貼文為 2160 × 2160 px，限動為 2160 × 3840 px，可縮放後上傳 Instagram。若 JPG 匯出失敗，請改用 Chrome 開啟此 HTML 再試。</p>
       <p class="hint">列印／另存 PDF 可保留列印版面；設定備份則可用 JSON 匯出與匯入。</p>
@@ -1039,6 +1048,107 @@ body { width: 100%; overflow-x: hidden; }
     reader.onerror = function () { status.textContent = "讀取備份檔失敗，請再試一次。"; importInput.value = ""; };
     reader.readAsText(file);
   });
+
+
+  // Supabase cloud sync: use only the public publishable key; RLS restricts rows by user_id.
+  var SUPABASE_URL = "https://qxxqfvyqwuavymlzinez.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_KW3d-VV6Q8CTPLDPZv_KxA_H_nFVeou";
+  var syncSessionKey = "i_tattoo_yu_supabase_session_v1";
+  var syncSession = null;
+  var syncStatus = document.getElementById("syncStatus");
+  var syncUploadBtn = document.getElementById("syncUploadBtn");
+  var syncDownloadBtn = document.getElementById("syncDownloadBtn");
+  var syncLogoutBtn = document.getElementById("syncLogoutBtn");
+  try { syncSession = JSON.parse(localStorage.getItem(syncSessionKey) || "null"); } catch (e) { syncSession = null; }
+  function syncMessage(message, isError) {
+    syncStatus.textContent = message;
+    syncStatus.style.color = isError ? "#a33b3b" : "#426779";
+  }
+  function syncSetSession(session) {
+    syncSession = session || null;
+    if (syncSession) localStorage.setItem(syncSessionKey, JSON.stringify(syncSession));
+    else localStorage.removeItem(syncSessionKey);
+    var loggedIn = !!(syncSession && syncSession.access_token && syncSession.user && syncSession.user.id);
+    syncUploadBtn.disabled = !loggedIn;
+    syncDownloadBtn.disabled = !loggedIn;
+    syncLogoutBtn.hidden = !loggedIn;
+    document.getElementById("syncLoginBtn").disabled = loggedIn;
+    document.getElementById("syncSignupBtn").disabled = loggedIn;
+    if (loggedIn) syncMessage("已登入：" + (syncSession.user.email || "帳號") + "。請手動選擇上傳或下載。", false);
+  }
+  async function supabaseAuth(path, body) {
+    var response = await fetch(SUPABASE_URL + "/auth/v1/" + path, {
+      method: "POST", headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY }, body: JSON.stringify(body)
+    });
+    var data = await response.json().catch(function () { return {}; });
+    if (!response.ok) throw new Error(data.msg || data.message || data.error_description || data.error || "登入服務回應錯誤（" + response.status + "）");
+    return data;
+  }
+  function syncCredentials() {
+    var email = document.getElementById("syncEmail").value.trim();
+    var password = document.getElementById("syncPassword").value;
+    if (!email || !password) throw new Error("請輸入 Email 和密碼。");
+    if (password.length < 6) throw new Error("密碼至少需要 6 個字元。");
+    return { email: email, password: password };
+  }
+  document.getElementById("syncSignupBtn").addEventListener("click", async function () {
+    try {
+      var credentials = syncCredentials();
+      syncMessage("正在註冊帳號……", false);
+      var data = await supabaseAuth("signup", credentials);
+      if (data.access_token && data.user) {
+        syncSetSession(data);
+        syncMessage("註冊成功並已登入。建議先匯出 JSON 備份，再上傳設定。", false);
+      } else {
+        syncMessage("註冊申請成功！請到 Email 收取驗證信，完成驗證後回來登入。", false);
+      }
+    } catch (err) { syncMessage("註冊失敗：" + err.message, true); }
+  });
+  document.getElementById("syncLoginBtn").addEventListener("click", async function () {
+    try {
+      var credentials = syncCredentials();
+      syncMessage("正在登入……", false);
+      var data = await supabaseAuth("token?grant_type=password", credentials);
+      syncSetSession(data);
+      document.getElementById("syncPassword").value = "";
+    } catch (err) { syncMessage("登入失敗：" + err.message, true); }
+  });
+  syncLogoutBtn.addEventListener("click", function () { syncSetSession(null); syncMessage("已登出此裝置。", false); });
+  async function syncRequest(path, options) {
+    if (!syncSession || !syncSession.access_token) throw new Error("請先登入。");
+    var headers = Object.assign({ "apikey": SUPABASE_KEY, "Authorization": "Bearer " + syncSession.access_token, "Content-Type": "application/json" }, (options && options.headers) || {});
+    var response = await fetch(SUPABASE_URL + "/rest/v1/" + path, Object.assign({}, options || {}, { headers: headers }));
+    if (response.status === 401) { syncSetSession(null); throw new Error("登入已過期，請重新登入。"); }
+    if (!response.ok) {
+      var message = await response.text();
+      throw new Error("雲端資料庫錯誤（" + response.status + "）" + (message ? "：" + message.slice(0, 220) : ""));
+    }
+    if (response.status === 204) return null;
+    return response.json().catch(function () { return null; });
+  }
+  syncUploadBtn.addEventListener("click", async function () {
+    if (!syncSession || !syncSession.user) return;
+    if (!confirm("要將這台裝置目前的設定上傳到雲端嗎？同帳號的舊雲端設定會被取代。建議先匯出 JSON 備份。")) return;
+    try {
+      syncMessage("正在上傳設定……", false);
+      saveNow(false);
+      var payload = { user_id: syncSession.user.id, settings: getState(), updated_at: new Date().toISOString() };
+      await syncRequest("tattoo_calendar_settings?on_conflict=user_id", { method: "POST", headers: { "Prefer": "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(payload) });
+      syncMessage("上傳成功！此帳號的雲端設定已更新。", false);
+    } catch (err) { syncMessage("上傳失敗：" + err.message, true); }
+  });
+  syncDownloadBtn.addEventListener("click", async function () {
+    if (!syncSession || !syncSession.user) return;
+    if (!confirm("下載雲端設定會取代這台裝置目前的設定。建議先匯出 JSON 備份。要繼續嗎？")) return;
+    try {
+      syncMessage("正在下載雲端設定……", false);
+      var rows = await syncRequest("tattoo_calendar_settings?select=settings,updated_at&user_id=eq." + encodeURIComponent(syncSession.user.id), { method: "GET" });
+      if (!rows || !rows.length || !rows[0].settings) { syncMessage("雲端目前沒有設定。請先在已有設定的裝置按「上傳目前設定」。", true); return; }
+      applyState(rows[0].settings);
+      syncMessage("下載成功！已套用雲端設定。", false);
+    } catch (err) { syncMessage("下載失敗：" + err.message, true); }
+  });
+  syncSetSession(syncSession);
 
   var savedState = null;
   try { savedState = JSON.parse(localStorage.getItem(storageKey) || "null"); } catch (err) {}
