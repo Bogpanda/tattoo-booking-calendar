@@ -68,7 +68,7 @@
   .art-subtitle { font-size: clamp(8px, 1.15vw, 12px); letter-spacing: .28em; color: #6b8797; margin-top: 8px; }
   .art-month { margin: 2.8% 0 3%; text-align: center; font: 500 clamp(19px, 3.1vw, 31px)/1.15 "Times New Roman", Georgia, serif; letter-spacing: .12em; }
   .artboard.story .art-month { margin: 4.2% 0 5%; font-size: clamp(21px, 4.8vw, 30px); }
-  .calendar-wrap { flex: 1 1 auto; min-height: 0; display: flex; }
+  .calendar-wrap { flex: 1 1 auto; min-height: 0; width: 80%; margin-inline: auto; display: flex; }
   table.calendar { width: 100%; height: 100%; table-layout: fixed; border-collapse: collapse; border-spacing: 0; border: 1px solid var(--line); background: rgba(255,255,255,.20); }
   .calendar th, .calendar td { border: 1px solid var(--line); text-align: center; vertical-align: top; padding: 0; }
   .calendar th { height: 7%; vertical-align: middle; font-size: clamp(8px, 1.15vw, 12px); letter-spacing: .08em; font-weight: 600; color: #688495; }
@@ -353,7 +353,7 @@ body { width: 100%; overflow-x: hidden; }
     align-self: center;
     padding: 6% 5% 5%;
   }
-  .calendar-wrap { flex: 1 1 auto; min-height: 0; width: 100%; }
+  .calendar-wrap { flex: 1 1 auto; min-height: 0; width: 80%; margin-inline: auto; }
   .calendar { width: 100%; }
   .calendar th { font-size: clamp(7px, 2.1vw, 10px); }
   .day-number { font-size: clamp(10px, 3vw, 13px); }
@@ -369,6 +369,12 @@ body { width: 100%; overflow-x: hidden; }
   input, select { font-size: 16px !important; }
 }
 
+  /* Square post uses 90% calendar width and reserves a clear footer zone;
+     story remains at 80%. This prevents the bottom-right studio name overlapping the calendar. */
+  .artboard:not(.story) .calendar-wrap {
+    width: 90%;
+    margin-bottom: 7%;
+  }
 </style>
 </head>
 <body>
@@ -443,7 +449,7 @@ body { width: 100%; overflow-x: hidden; }
       <div class="actions"><button id="exportSettingsBtn" type="button">匯出設定備份</button><button id="importSettingsBtn" type="button">匯入設定備份</button></div>
       <input id="importSettingsFile" type="file" accept="application/json,.json" hidden>
       <p class="hint">設定會在此瀏覽器自動儲存；「匯出設定備份」可另存 JSON，換裝置或清除瀏覽器資料前可用「匯入設定備份」還原。</p>
-      <p class="hint">「下載 IG JPG」會直接輸出目前預覽：高解析輸出：貼文為 2160 × 2160 px，限動為 2160 × 3840 px，可縮放後上傳 Instagram。若 JPG 匯出失敗，請改用 Chrome 開啟此 HTML 再試。</p>
+      <p class="hint">「下載 IG JPG」會直接輸出目前預覽：高解析輸出：貼文為 2160 × 2160 px，限動為 2880 × 5120 px，可縮放後上傳 Instagram。若 JPG 匯出失敗，請改用 Chrome 開啟此 HTML 再試。</p>
       <p class="hint">列印／另存 PDF 可保留列印版面；設定備份則可用 JSON 匯出與匯入。</p>
     </section>
     <section class="panel">
@@ -680,23 +686,41 @@ body { width: 100%; overflow-x: hidden; }
     scheduleSave();
   }
 
+  function refreshPreviewLayout() {
+    // Force Safari/iOS to recalculate the preview after a format or visual-template switch.
+    void artboard.offsetWidth;
+    artboard.style.visibility = "hidden";
+    void artboard.offsetHeight;
+    artboard.style.visibility = "";
+    void artboard.offsetWidth;
+  }
+
   function setFormat(value) {
     var isStory = value === "story";
     artboard.classList.toggle("story", isStory);
-    formatSelect.value = value;
+    artboard.dataset.format = isStory ? "story" : "square";
+    // Set the aspect ratio directly as well as through CSS, so the preview updates reliably on mobile Safari.
+    artboard.style.aspectRatio = isStory ? "9 / 16" : "1 / 1";
+    artboard.style.height = "auto";
+    formatSelect.value = isStory ? "story" : "square";
     document.getElementById("squareBtn").classList.toggle("active", !isStory);
     document.getElementById("storyBtn").classList.toggle("active", isStory);
     document.getElementById("squareBtn").setAttribute("aria-pressed", String(!isStory));
     document.getElementById("storyBtn").setAttribute("aria-pressed", String(isStory));
+    refreshPreviewLayout();
   }
 
   function setTemplate(value) {
     var templateClasses = ["template-korean", "template-square-grid", "template-circle-date",
       "template-line-list", "template-gray-blue", "template-editorial"];
     templateClasses.forEach(function (name) { artboard.classList.remove(name); });
+    var allowedTemplates = ["korean", "square-grid", "circle-date", "line-list", "gray-blue", "editorial"];
+    if (allowedTemplates.indexOf(value) < 0) value = "circle-date";
     var className = "template-" + value;
     artboard.classList.add(className);
+    artboard.dataset.template = value;
     templateSelect.value = value;
+    refreshPreviewLayout();
   }
 
   yearSelect.addEventListener("change", function () { changeMonth(yearSelect.value, monthSelect.value); });
@@ -723,10 +747,14 @@ body { width: 100%; overflow-x: hidden; }
     document.getElementById("artWarningText").textContent = warningText.value;
     scheduleSave();
   });
-  formatSelect.addEventListener("change", function () { setFormat(formatSelect.value); scheduleSave(); });
+  formatSelect.addEventListener("change", function () {
+    setFormat(formatSelect.value);
+    status.textContent = formatSelect.value === "story" ? "預覽已更新為限動 9:16 版型。" : "預覽已更新為貼文 1:1 版型。";
+    scheduleSave();
+  });
   templateSelect.addEventListener("change", function () {
     setTemplate(templateSelect.value);
-    status.textContent = "已切換月曆視覺模板。";
+    status.textContent = "下方預覽已更新為所選月曆視覺模板。";
     scheduleSave();
   });
   document.getElementById("squareBtn").addEventListener("click", function () { setFormat("square"); scheduleSave(); });
@@ -956,7 +984,7 @@ body { width: 100%; overflow-x: hidden; }
     }
     status.textContent = "正在依照預覽畫面製作 JPG，請稍候……";
     var isStory = formatSelect.value === "story";
-    var W = 2160, H = isStory ? 3840 : 2160;
+    var W = isStory ? 2880 : 2160, H = isStory ? 5120 : 2160;
     var target = document.getElementById("artboard");
     try {
       // Capture the actual preview DOM/CSS, including template styles and pseudo-element background.
