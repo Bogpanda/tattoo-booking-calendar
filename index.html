@@ -388,11 +388,13 @@ body { width: 100%; overflow-x: hidden; }
     color: rgba(180, 190, 198, .68) !important;
     text-decoration: line-through;
     text-decoration-thickness: 1.5px;
-    text-decoration-color: rgba(37, 75, 112, .68);
+    text-decoration-color: rgba(37, 75, 112, .40);
     opacity: 1;
   }
+  /* 無框線清單版型：移除時間文字下方的線，減少視覺線條。 */
+  .artboard.template-line-list .slot,
   .artboard.template-line-list .slot.done {
-    border-bottom-color: rgba(145, 158, 168, .24) !important;
+    border-bottom: 0 !important;
   }
 </style>
 </head>
