@@ -631,8 +631,12 @@ body { width: 100%; overflow-x: hidden; }
     };
   }
 
+  function formattedMonthTitle(month) {
+    return String(month) + " " + monthNames[month - 1].charAt(0) + monthNames[month - 1].slice(1).toLowerCase();
+  }
+
   function updateMonthTitle() {
-    monthTitle.value = monthNames[currentMonth - 1] + " BOOKING";
+    monthTitle.value = formattedMonthTitle(currentMonth);
     document.getElementById("artMonth").textContent = monthTitle.value;
   }
 
@@ -645,7 +649,7 @@ body { width: 100%; overflow-x: hidden; }
     renderCalendar();
     var saved = monthlyData[monthKey(currentYear, currentMonth)];
     if (saved) {
-      monthTitle.value = saved.monthTitle || (monthNames[currentMonth - 1] + " BOOKING");
+      monthTitle.value = formattedMonthTitle(currentMonth);
       timeA.value = saved.timeA == null ? "13:00" : saved.timeA;
       timeB.value = saved.timeB == null ? "16:00" : saved.timeB;
       timeC.value = saved.timeC == null ? "19:00" : saved.timeC;
@@ -661,7 +665,7 @@ body { width: 100%; overflow-x: hidden; }
       datesB.value = "";
       datesC.value = "";
     }
-    document.getElementById("artMonth").textContent = monthTitle.value.trim() || (monthNames[currentMonth - 1] + " BOOKING");
+    document.getElementById("artMonth").textContent = monthTitle.value.trim() || formattedMonthTitle(currentMonth);
     deploy();
     var crossed = saved && Array.isArray(saved.crossedOut) ? saved.crossedOut : [];
     document.querySelectorAll(".slot input").forEach(function (el, index) {
@@ -765,7 +769,7 @@ body { width: 100%; overflow-x: hidden; }
     scheduleSave();
   });
   monthTitle.addEventListener("input", function () {
-    document.getElementById("artMonth").textContent = monthTitle.value.trim() || (monthNames[currentMonth - 1] + " BOOKING");
+    document.getElementById("artMonth").textContent = monthTitle.value.trim() || formattedMonthTitle(currentMonth);
     scheduleSave();
   });
   studioName.addEventListener("input", function () {
@@ -962,9 +966,18 @@ body { width: 100%; overflow-x: hidden; }
     yearSelect.value = String(currentYear);
     monthSelect.value = String(currentMonth);
     monthlyData = state.monthlyData && typeof state.monthlyData === "object" ? state.monthlyData : {};
+    Object.keys(monthlyData).forEach(function (key) {
+      var match = /^(\\d{4})-(\\d{2})$/.exec(key);
+      if (match) {
+        var monthNumber = Number(match[2]);
+        if (monthNumber >= 1 && monthNumber <= 12 && monthlyData[key] && typeof monthlyData[key] === "object") {
+          monthlyData[key].monthTitle = formattedMonthTitle(monthNumber);
+        }
+      }
+    });
     renderCalendar();
     var currentMonthState = monthlyData[monthKey(currentYear, currentMonth)];
-    monthTitle.value = state.monthTitle || (currentMonthState && currentMonthState.monthTitle) || (monthNames[currentMonth - 1] + " BOOKING");
+    monthTitle.value = formattedMonthTitle(currentMonth);
     studioName.value = (!state.studioName || state.studioName === "i.tattoo.yu") ? "@i.tattoo.yu" : state.studioName;
     timeA.value = state.timeA == null ? "13:00" : state.timeA;
     timeB.value = state.timeB == null ? "16:00" : state.timeB;
@@ -972,7 +985,7 @@ body { width: 100%; overflow-x: hidden; }
     datesA.value = state.datesA == null ? "" : state.datesA;
     datesB.value = state.datesB == null ? "" : state.datesB;
     datesC.value = state.datesC == null ? "" : state.datesC;
-    document.getElementById("artMonth").textContent = monthTitle.value.trim() || (monthNames[currentMonth - 1] + " BOOKING");
+    document.getElementById("artMonth").textContent = monthTitle.value.trim() || formattedMonthTitle(currentMonth);
     document.getElementById("artStudioName").textContent = studioName.value.trim();
     warningText.value = state.warningText == null ? "目前單日只接待一位客人 請見諒" : state.warningText;
     document.getElementById("artWarningText").textContent = warningText.value;
