@@ -87,6 +87,14 @@
   .slot:focus-within { outline: 2px solid #5e8da6; outline-offset: 1px; }
   .slot.done { background: rgba(222,226,229,.8); border-color: rgba(156,166,171,.45); color: #9ba5aa; }
   .slot.done .slot-text { text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: #87949a; }
+  /* Weekday headers: larger Chinese labels, consistent column alignment across templates. */
+  .calendar th, .calendar td { width: 14.285714%; box-sizing: border-box; }
+  .calendar th { font-size: clamp(12px, 1.725vw, 18px); letter-spacing: .04em; text-align: center; }
+  /* Sunday and Saturday use a muted burgundy accent, including their date numbers. */
+  .calendar thead th:first-child,
+  .calendar thead th:last-child,
+  .calendar tbody td:first-child .day-number,
+  .calendar tbody td:last-child .day-number { color: #7b263a !important; }
   .calendar td.empty { background: rgba(234,241,245,.14); }
   .art-footer { text-align: center; padding-top: 3.5%; font-size: clamp(8px, 1.12vw, 12px); letter-spacing: .03em; color: #5e7888; flex: 0 0 auto; }
   .artboard.story .art-footer { padding-top: 5%; font-size: clamp(9px, 2.4vw, 12px); line-height: 1.6; }
