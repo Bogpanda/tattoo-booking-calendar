@@ -63,11 +63,11 @@
   .artboard::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: rgba(250,253,255,.78); }
   .artboard.has-bg::after { background: rgba(250,253,255,.76); }
   .artboard > * { position: relative; z-index: 2; }
-  .art-top { text-align: center; flex: 0 0 auto; }
+  .art-top { text-align: center; flex: 0 0 auto; line-height: 0; margin-bottom: 0; }
   .art-brand { font: italic clamp(19px, 3vw, 30px)/1.1 "Times New Roman", Georgia, serif; letter-spacing: .06em; }
   .art-subtitle { font-size: clamp(8px, 1.15vw, 12px); letter-spacing: .28em; color: #6b8797; margin-top: 8px; }
-  .art-month { margin: 1.4% 0 3%; text-align: center; font: 500 clamp(19px, 3.1vw, 31px)/1.15 "Times New Roman", Georgia, serif; letter-spacing: .12em; }
-  .artboard.story .art-month { margin: 2.1% 0 5%; font-size: clamp(21px, 4.8vw, 30px); }
+  .art-month { margin: 0 0 3%; text-align: center; font: 500 clamp(19px, 3.1vw, 31px)/1.15 "Times New Roman", Georgia, serif; letter-spacing: .12em; }
+  .artboard.story .art-month { margin: 0 0 5%; font-size: clamp(21px, 4.8vw, 30px); }
   .calendar-wrap { flex: 1 1 auto; min-height: 0; width: 80%; margin-inline: auto; display: flex; }
   table.calendar { width: 100%; height: 100%; table-layout: fixed; border-collapse: collapse; border-spacing: 0; border: 1px solid var(--line); background: rgba(255,255,255,.20); }
   .calendar th, .calendar td { border: 1px solid var(--line); text-align: center; vertical-align: top; padding: 0; }
@@ -453,7 +453,7 @@ body { width: 100%; overflow-x: hidden; }
         <label class="field"><span>開放日期（逗號分隔）</span><input id="datesC" type="text" value="" placeholder="例如：5, 12, 19, 26"></label>
       </div>
       <div class="actions"><button class="primary" id="deployBtn" type="button">部署到月曆</button><button id="clearBtn" type="button">清除時段</button></div>
-      <p class="hint">日期請輸入當月有效日期（例如 2 月不會有 30 日）。相同日期可同時有 A、B 兩個時段。重新部署時會保留原先已劃除的日期與時段；按「清除時段」才會清除。</p>
+      <p class="hint">日期請輸入當月有效日期（例如 2 月不會有 30 日）。相同日期可同時有 A、B 兩個時段。部署時會重建時段標籤並清除舊的劃除狀態。</p>
     </section>
 
     <section class="panel">
@@ -619,7 +619,7 @@ body { width: 100%; overflow-x: hidden; }
       datesA: datesA.value,
       datesB: datesB.value,
       datesC: datesC.value,
-      crossedOut: Array.from(document.querySelectorAll(".slot input")).filter(function (el) { return el.checked; }).map(function (el) { var slot = el.closest(".slot"); var cell = el.closest(".day-cell"); return cell.dataset.day + "|" + (slot.dataset.group || "") ; })
+      crossedOut: Array.from(document.querySelectorAll(".slot input")).map(function (el, index) { return el.checked ? index : -1; }).filter(function (index) { return index >= 0; })
     };
   }
 
@@ -657,10 +657,8 @@ body { width: 100%; overflow-x: hidden; }
     deploy();
     var crossed = saved && Array.isArray(saved.crossedOut) ? saved.crossedOut : [];
     document.querySelectorAll(".slot input").forEach(function (el, index) {
-      var slot = el.closest(".slot"); var cell = el.closest(".day-cell");
-      var key = cell.dataset.day + "|" + (slot.dataset.group || "");
-      el.checked = crossed.indexOf(key) >= 0 || (crossed.length && typeof crossed[0] === "number" && crossed.indexOf(index) >= 0);
-      slot.classList.toggle("done", el.checked);
+      el.checked = crossed.indexOf(index) >= 0;
+      el.closest(".slot").classList.toggle("done", el.checked);
       el.setAttribute("aria-checked", String(el.checked));
     });
     captureCurrentMonth();
@@ -693,13 +691,6 @@ body { width: 100%; overflow-x: hidden; }
   }
 
   function deploy() {
-    // Preserve deleted/booked state by date + slot group across re-deploys.
-    var crossedKeys = new Set();
-    document.querySelectorAll(".slot input:checked").forEach(function (el) {
-      var slot = el.closest(".slot");
-      var cell = el.closest(".day-cell");
-      if (slot && cell) crossedKeys.add(cell.dataset.day + "|" + (slot.dataset.group || ""));
-    });
     document.querySelectorAll(".day-cell .slots").forEach(function (el) { el.textContent = ""; });
     document.querySelectorAll(".day-cell").forEach(function (el) { el.classList.remove("open-day"); });
     var aDays = parseDates(datesA.value);
@@ -711,18 +702,8 @@ body { width: 100%; overflow-x: hidden; }
     aDays.forEach(function (day) { addSlot(day, aLabel, "A"); });
     bDays.forEach(function (day) { addSlot(day, bLabel, "B"); });
     cDays.forEach(function (day) { addSlot(day, cLabel, "C"); });
-    document.querySelectorAll(".slot input").forEach(function (el) {
-      var slot = el.closest(".slot");
-      var cell = el.closest(".day-cell");
-      var key = cell.dataset.day + "|" + (slot.dataset.group || "");
-      if (crossedKeys.has(key)) {
-        el.checked = true;
-        slot.classList.add("done");
-        el.setAttribute("aria-checked", "true");
-      }
-    });
     var count = (aLabel ? aDays.length : 0) + (bLabel ? bDays.length : 0) + (cLabel ? cDays.length : 0);
-    status.textContent = "已部署 " + count + " 個時段標籤；原有劃除狀態已保留。";
+    status.textContent = "已部署 " + count + " 個時段標籤。點擊月曆標籤可獨立劃除。";
     scheduleSave();
   }
 
@@ -771,11 +752,8 @@ body { width: 100%; overflow-x: hidden; }
     datesA.value = "";
     datesB.value = "";
     datesC.value = "";
-    document.querySelectorAll(".slot input").forEach(function (el) { el.checked = false; });
     deploy();
-    captureCurrentMonth();
-    monthlyData[monthKey(currentYear, currentMonth)].crossedOut = [];
-    status.textContent = "已清除所有時段標籤與劃除狀態。";
+    status.textContent = "已清除所有時段標籤。";
     scheduleSave();
   });
   monthTitle.addEventListener("input", function () {
@@ -945,7 +923,7 @@ body { width: 100%; overflow-x: hidden; }
       datesA: datesA.value,
       datesB: datesB.value,
       datesC: datesC.value,
-      crossedOut: Array.from(document.querySelectorAll(".slot input")).filter(function (el) { return el.checked; }).map(function (el) { var slot = el.closest(".slot"); var cell = el.closest(".day-cell"); return cell.dataset.day + "|" + (slot.dataset.group || "") ; }),
+      crossedOut: Array.from(document.querySelectorAll(".slot input")).map(function (el, index) { return el.checked ? index : -1; }).filter(function (index) { return index >= 0; }),
       logo: currentLogoUrl,
       logoHidden: artLogo.style.display === "none",
       background: currentBackgroundUrl
@@ -1011,10 +989,8 @@ body { width: 100%; overflow-x: hidden; }
     deploy();
     var crossed = Array.isArray(state.crossedOut) ? state.crossedOut : [];
     document.querySelectorAll(".slot input").forEach(function (el, index) {
-      var slot = el.closest(".slot"); var cell = el.closest(".day-cell");
-      var key = cell.dataset.day + "|" + (slot.dataset.group || "");
-      el.checked = crossed.indexOf(key) >= 0 || (crossed.length && typeof crossed[0] === "number" && crossed.indexOf(index) >= 0);
-      slot.classList.toggle("done", el.checked);
+      el.checked = crossed.indexOf(index) >= 0;
+      el.closest(".slot").classList.toggle("done", el.checked);
       el.setAttribute("aria-checked", String(el.checked));
     });
     saveNow(false);
