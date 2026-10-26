@@ -496,8 +496,8 @@ body { width: 100%; overflow-x: hidden; }
         <div class="calendar-wrap">
           <table class="calendar" id="calendarTable" aria-label="2026 年 11 月預約月曆">
             <thead><tr>
-              <th scope="col">MON</th><th scope="col">TUE</th><th scope="col">WED</th>
-              <th scope="col">THU</th><th scope="col">FRI</th><th scope="col">SAT</th><th scope="col">SUN</th>
+              <th scope="col">日</th><th scope="col">一</th><th scope="col">二</th>
+              <th scope="col">三</th><th scope="col">四</th><th scope="col">五</th><th scope="col">六</th>
             </tr></thead>
             <tbody id="calendarBody">
             <tr><td class="empty" aria-label="無日期"></td><td class="empty" aria-label="無日期"></td><td class="empty" aria-label="無日期"></td><td class="empty" aria-label="無日期"></td><td class="empty" aria-label="無日期"></td><td class="empty" aria-label="無日期"></td><td class="day-cell" data-day="1"><span class="day-number">1</span><div class="slots"></div></td></tr>
@@ -580,7 +580,7 @@ body { width: 100%; overflow-x: hidden; }
     var body = document.getElementById("calendarBody");
     body.textContent = "";
     var firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
-    var offset = (firstDay + 6) % 7; // Monday first
+    var offset = firstDay; // Sunday first
     var days = new Date(currentYear, currentMonth, 0).getDate();
     var totalCells = Math.ceil((offset + days) / 7) * 7;
     for (var i = 0; i < totalCells; i += 7) {
