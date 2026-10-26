@@ -470,7 +470,7 @@ body { width: 100%; overflow-x: hidden; }
       <div class="actions"><button id="exportSettingsBtn" type="button">匯出設定備份</button><button id="importSettingsBtn" type="button">匯入設定備份</button></div>
       <input id="importSettingsFile" type="file" accept="application/json,.json" hidden>
       <p class="hint">設定會在此瀏覽器自動儲存；「匯出設定備份」可另存 JSON，換裝置或清除瀏覽器資料前可用「匯入設定備份」還原。</p>
-      <p class="hint">「下載 IG JPG（單張）」會輸出目前預覽。若 1:1 月曆資訊太多，可按「下載 1:1 兩張圖」，自動拆成 1–15 日與 16 日至月底兩張正方形圖片（各 2160 × 2160 px）。限動輸出為 2880 × 5120 px。若 JPG 匯出失敗，請改用 Chrome 開啟此 HTML 再試。</p>
+      <p class="hint">「下載 IG JPG（單張）」會輸出目前預覽。若 1:1 月曆資訊太多，可按「下載 1:1 兩張圖」，拆成兩張正方形圖片：第 1 張顯示 1–15 日、第 2 張顯示 16 日至月底；每張會放大剩餘日期列的可用高度，避免月曆內容擠到右下角工作室名稱（各 2160 × 2160 px）。限動輸出為 2880 × 5120 px。若 JPG 匯出失敗，請改用 Chrome 開啟此 HTML 再試。</p>
       <p class="hint">列印／另存 PDF 可保留列印版面；設定備份則可用 JSON 匯出與匯入。</p>
     </section>
     <section class="panel">
@@ -1080,7 +1080,7 @@ body { width: 100%; overflow-x: hidden; }
         var minDay = part === 0 ? 1 : 16;
         var maxDay = part === 0 ? 15 : 31;
         var clone = target.cloneNode(true);
-        clone.id = "split-export-artboard-" + part;
+        clone.id = "artboard"; // Keep the original artboard selector styling in the exported clone.
         clone.style.position = "fixed";
         clone.style.left = "-12000px";
         clone.style.top = "0";
@@ -1090,7 +1090,8 @@ body { width: 100%; overflow-x: hidden; }
         clone.style.transform = "none";
         clone.style.aspectRatio = "auto";
         clone.style.visibility = "visible";
-        var rows = clone.querySelectorAll("#calendarBody tr");
+        var rows = Array.from(clone.querySelectorAll("#calendarBody tr"));
+        var visibleRows = [];
         rows.forEach(function (row) {
           var hasIncludedDay = false;
           row.querySelectorAll("td").forEach(function (cell) {
@@ -1104,8 +1105,24 @@ body { width: 100%; overflow-x: hidden; }
               cell.setAttribute("aria-label", "此張未顯示的日期");
             }
           });
-          if (!hasIncludedDay) row.style.display = "none";
+          if (!hasIncludedDay) {
+            row.style.display = "none";
+          } else {
+            visibleRows.push(row);
+          }
         });
+        // Let the remaining half-month rows expand to fill the calendar area, so
+        // the appointment slots have more vertical room and never crowd the studio name.
+        var rowHeight = 93 / Math.max(1, visibleRows.length);
+        visibleRows.forEach(function (row) {
+          row.style.height = rowHeight + "%";
+          row.querySelectorAll("td").forEach(function (cell) { cell.style.height = "100%"; });
+        });
+        var splitTable = clone.querySelector("#calendarTable");
+        if (splitTable) {
+          splitTable.style.height = "100%";
+          splitTable.style.tableLayout = "fixed";
+        }
         document.body.appendChild(clone);
         try {
           var rendered = await window.html2canvas(clone, {
