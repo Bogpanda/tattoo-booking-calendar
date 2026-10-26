@@ -388,7 +388,7 @@ body { width: 100%; overflow-x: hidden; }
     color: rgba(180, 190, 198, .68) !important;
     text-decoration: line-through;
     text-decoration-thickness: 1.5px;
-    text-decoration-color: rgba(37, 75, 112, .40);
+    text-decoration-color: rgba(180, 190, 198, .68);
     opacity: 1;
   }
   /* 無框線清單版型：移除時間文字下方的線，減少視覺線條。 */
@@ -465,12 +465,12 @@ body { width: 100%; overflow-x: hidden; }
       <p class="hint" style="color:#b45b5b">⚠ 背景圖片建議控制在 1.1 MB 以下；目前測試超過此大小可能無法正常顯示，建議先壓縮圖片再上傳。</p>
       <label class="field"><span>月曆下方警語（可自行修改）</span><input id="warningText" type="text" value="目前單日只接待一位客人 請見諒" maxlength="80"></label>
       <div class="actions"><button id="refreshBgBtn" type="button">重新載入背景</button><button id="removeBgBtn" type="button">移除背景圖</button></div>
-      <div class="actions"><button id="exportJpgBtn" class="primary" type="button">下載 IG JPG</button><button id="printBtn" type="button">列印／另存 PDF</button></div>
+      <div class="actions"><button id="exportJpgBtn" class="primary" type="button">下載 IG JPG（單張）</button><button id="exportSplitJpgBtn" type="button">下載 1:1 兩張圖</button><button id="printBtn" type="button">列印／另存 PDF</button></div>
       <div id="status" class="status" role="status" aria-live="polite" style="padding:10px 12px;background:#eef6fa;border-radius:8px;overflow-wrap:anywhere;"></div>
       <div class="actions"><button id="exportSettingsBtn" type="button">匯出設定備份</button><button id="importSettingsBtn" type="button">匯入設定備份</button></div>
       <input id="importSettingsFile" type="file" accept="application/json,.json" hidden>
       <p class="hint">設定會在此瀏覽器自動儲存；「匯出設定備份」可另存 JSON，換裝置或清除瀏覽器資料前可用「匯入設定備份」還原。</p>
-      <p class="hint">「下載 IG JPG」會直接輸出目前預覽：高解析輸出：貼文為 2160 × 2160 px，限動為 2880 × 5120 px，可縮放後上傳 Instagram。若 JPG 匯出失敗，請改用 Chrome 開啟此 HTML 再試。</p>
+      <p class="hint">「下載 IG JPG（單張）」會輸出目前預覽。若 1:1 月曆資訊太多，可按「下載 1:1 兩張圖」，自動拆成 1–15 日與 16 日至月底兩張正方形圖片（各 2160 × 2160 px）。限動輸出為 2880 × 5120 px。若 JPG 匯出失敗，請改用 Chrome 開啟此 HTML 再試。</p>
       <p class="hint">列印／另存 PDF 可保留列印版面；設定備份則可用 JSON 匯出與匯入。</p>
     </section>
     <section class="panel">
@@ -1053,6 +1053,96 @@ body { width: 100%; overflow-x: hidden; }
       try { a.click(); } catch (e) {}
     } catch (err) {
       status.textContent = "JPG 匯出失敗：" + (err && err.message ? err.message : "無法擷取預覽畫面");
+    }
+  });
+
+  document.getElementById("exportSplitJpgBtn").addEventListener("click", async function () {
+    saveNow(false);
+    if (formatSelect.value !== "square") {
+      status.textContent = "請先切換到「貼文 1:1」，再下載分成兩張的版本。";
+      return;
+    }
+    if (typeof window.html2canvas !== "function") {
+      status.textContent = "JPG 匯出需要載入畫面轉圖元件，請確認網路連線後重新整理此頁，再試一次。";
+      return;
+    }
+    var target = document.getElementById("artboard");
+    var rect = target.getBoundingClientRect();
+    var sourceWidth = Math.max(1, Math.round(rect.width));
+    var sourceHeight = Math.max(1, Math.round(rect.height));
+    var W = 2160, H = 2160;
+    var year = yearSelect.value || currentYear;
+    var month = String(monthSelect.value || currentMonth).padStart(2, "0");
+    var links = [];
+    status.textContent = "正在製作 1:1 兩張圖片，請稍候……";
+    try {
+      for (var part = 0; part < 2; part++) {
+        var minDay = part === 0 ? 1 : 16;
+        var maxDay = part === 0 ? 15 : 31;
+        var clone = target.cloneNode(true);
+        clone.id = "split-export-artboard-" + part;
+        clone.style.position = "fixed";
+        clone.style.left = "-12000px";
+        clone.style.top = "0";
+        clone.style.width = sourceWidth + "px";
+        clone.style.height = sourceHeight + "px";
+        clone.style.maxWidth = "none";
+        clone.style.transform = "none";
+        clone.style.aspectRatio = "auto";
+        clone.style.visibility = "visible";
+        var rows = clone.querySelectorAll("#calendarBody tr");
+        rows.forEach(function (row) {
+          var hasIncludedDay = false;
+          row.querySelectorAll("td").forEach(function (cell) {
+            var day = Number(cell.dataset.day || 0);
+            if (day >= minDay && day <= maxDay) {
+              hasIncludedDay = true;
+            } else if (day) {
+              cell.querySelectorAll(".day-number, .slots").forEach(function (el) { el.remove(); });
+              cell.classList.remove("open-day");
+              cell.removeAttribute("data-day");
+              cell.setAttribute("aria-label", "此張未顯示的日期");
+            }
+          });
+          if (!hasIncludedDay) row.style.display = "none";
+        });
+        document.body.appendChild(clone);
+        try {
+          var rendered = await window.html2canvas(clone, {
+            backgroundColor: null, scale: 4, useCORS: true, allowTaint: false, logging: false,
+            width: sourceWidth, height: sourceHeight,
+            windowWidth: Math.max(document.documentElement.clientWidth, sourceWidth),
+            windowHeight: Math.max(document.documentElement.clientHeight, sourceHeight)
+          });
+          var canvas = document.createElement("canvas");
+          canvas.width = W; canvas.height = H;
+          var ctx = canvas.getContext("2d");
+          if (!ctx) throw new Error("瀏覽器無法建立畫布");
+          ctx.fillStyle = "#f4f7f9";
+          ctx.fillRect(0, 0, W, H);
+          ctx.drawImage(rendered, 0, 0, rendered.width, rendered.height, 0, 0, W, H);
+          var blob = await new Promise(function (resolve) { canvas.toBlob(resolve, "image/jpeg", 0.96); });
+          if (!blob || !blob.size) throw new Error("瀏覽器無法產生圖片檔");
+          links.push({ blob: blob, filename: "i-tattoo-yu-booking-" + year + "-" + month + "-post-part" + (part + 1) + ".jpg", label: part === 0 ? "下載第 1 張（1–15 日）" : "下載第 2 張（16 日至月底）" });
+        } finally {
+          clone.remove();
+        }
+      }
+      status.textContent = "兩張正方形 JPG 已製作完成（各 2160 × 2160 px），請分別點擊下載： ";
+      links.forEach(function (item, index) {
+        var url = URL.createObjectURL(item.blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = item.filename;
+        a.textContent = item.label;
+        a.style.fontWeight = "700";
+        a.style.textDecoration = "underline";
+        a.style.color = "#2F77E0";
+        a.style.marginRight = "12px";
+        status.appendChild(a);
+      });
+    } catch (err) {
+      status.textContent = "兩張圖片匯出失敗：" + (err && err.message ? err.message : "無法擷取預覽畫面");
     }
   });
 
